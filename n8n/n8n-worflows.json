@@ -81,11 +81,11 @@
             "parameters": [
               {
                 "name": "apikey",
-                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2Zqa2xubm1taHRncG14aWt2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM5NDkzNywiZXhwIjoyMDg1OTcwOTM3fQ.tOOTqMBsOurE0UUZ-46eb0dwUXbw676-z9mKh6_tpeY"
+                "value": ""
               },
               {
                 "name": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2Zqa2xubm1taHRncG14aWt2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM5NDkzNywiZXhwIjoyMDg1OTcwOTM3fQ.tOOTqMBsOurE0UUZ-46eb0dwUXbw676-z9mKh6_tpeY"
+                "value": "Bearer "
               },
               {
                 "name": "Content-Type",
