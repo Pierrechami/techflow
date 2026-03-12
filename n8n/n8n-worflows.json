@@ -1,5 +1,5 @@
 {
-    "name": "My workflow",
+    "name": "techflow",
     "nodes": [
       {
         "parameters": {
@@ -69,7 +69,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "https://egofjklnnmmhtgpmxikv.supabase.co/rest/v1/articles",
+          "url": "{{$env.SUPABASE_URL}}/rest/v1/articles",
           "sendQuery": true,
           "queryParameters": {
             "parameters": [
@@ -81,11 +81,11 @@
             "parameters": [
               {
                 "name": "apikey",
-                "value": ""
+                "value": "{{$env.SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Authorization",
-                "value": "Bearer "
+                "value": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Content-Type",
