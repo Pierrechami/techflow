@@ -1,0 +1,82 @@
+# TechFlow
+
+Application Flutter de swipe d’articles tech, avec backend **Supabase**.
+
+## Pré-requis
+
+- Flutter (SDK installé) : `flutter --version`
+- Dart (fourni avec Flutter)
+- (Optionnel) Xcode (macOS/iOS) / Android Studio (Android) selon ta plateforme
+
+## Configuration
+
+1) Créer le fichier `.env` à la racine du projet.
+
+Tu peux partir de `.env.example` (ou copier/coller) et renseigner tes valeurs Supabase :
+
+```dotenv
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+```
+
+2) Installer les dépendances :
+
+```bash
+flutter pub get
+```
+
+## Lancer l’application
+
+Depuis la racine du projet :
+
+```bash
+flutter run
+```
+
+### Lancer sur une plateforme spécifique (exemples)
+
+- **macOS** :
+
+```bash
+flutter run -d macos
+```
+
+- **iOS** (avec simulateur ouvert) :
+
+```bash
+flutter run -d ios
+```
+
+- **Android** (avec émulateur ou device branché) :
+
+```bash
+flutter run -d android
+```
+
+## Commandes utiles
+
+- Lister les devices disponibles :
+
+```bash
+flutter devices
+```
+
+- Nettoyer et relancer (si build bloqué) :
+
+```bash
+flutter clean && flutter pub get
+```
+
+## Notes
+
+- Les variables d’environnement sont chargées via `flutter_dotenv` (asset `.env`).
+- Les dates utilisent `intl` et sont initialisées au démarrage (`initializeDateFormatting('fr_FR')`).
+
+## Reste à faire
+
+- Page de connexion + table Supabase
+- Page listant les articles likés
+- Page pour lire les articles
+- Fonctionnalité pour générer un résumé avec l’IA
+- Page de résumé de l’article via l’IA
+- swagger 

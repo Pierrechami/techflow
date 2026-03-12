@@ -1,0 +1,31 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n_techflow
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://${N8N_HOST}:5678/
+      - GENERIC_TIMEZONE=Europe/Paris
+      - TZ=Europe/Paris
+      # Authentification pour accéder à l'interface
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      # Base de données interne (SQLite suffit largement pour du local)
+      - DB_TYPE=sqlite
+      - DB_SQLITE_VACUUM_ON_STARTUP=true
+      # Historique des exécutions
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:
+    driver: local
