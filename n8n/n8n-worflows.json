@@ -1,0 +1,193 @@
+{
+    "name": "My workflow",
+    "nodes": [
+      {
+        "parameters": {
+          "jsCode": "return [\n  { json: { lg: 'php' } },\n  { json: { lg: 'js' } },\n  { json: { lg: 'python' } },\n  { json: { lg: 'ia' } },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -672,
+          208
+        ],
+        "id": "3de74163-c46b-4b4a-99e4-9f2012b52db6",
+        "name": "creation des tags"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "triggerAtHour": 11
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          -912,
+          176
+        ],
+        "id": "7424df30-f60e-4d30-ba3a-be35f224644c",
+        "name": "trigger rss",
+        "alwaysOutputData": true,
+        "executeOnce": false,
+        "notesInFlow": false
+      },
+      {
+        "parameters": {
+          "url": "=https://dev.to/feed/tag/{{ $json.lg }}",
+          "options": {
+            "customFields": ""
+          }
+        },
+        "type": "n8n-nodes-base.rssFeedRead",
+        "typeVersion": 1.2,
+        "position": [
+          -448,
+          272
+        ],
+        "id": "f7b65aeb-54e4-4d12-bd0d-ffd5cc9c2cd7",
+        "name": "RSS Read1",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst updatedItems = items.map((item) => {\n  let categories = item.json.categories;\n  let tagsArray = [];\n  if (Array.isArray(categories)) {\n    tagsArray = categories;\n  } else if (categories) {\n    tagsArray = [categories];\n  }\n  \n  return {\n    json: {\n      url: item.json.link,\n      title: item.json.title,\n      snippet: item.json.contentSnippet\n        ? item.json.contentSnippet.substring(0, 400) + \"...\"\n        : \"\",\n      published_at: item.json.isoDate,\n      tags: tagsArray,\n      content: item.json.content,\n      source_name: \"Dev.to\",\n      // On récupère l'auteur via la notation entre crochets pour gérer le \":\"\n      author: item.json['dc:creator'] || \"Dev.to User\", \n    },\n  };\n});\nreturn updatedItems;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -272,
+          80
+        ],
+        "id": "b1e8b504-3f35-4860-94a7-e091ceff31b1",
+        "name": "mapping"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://egofjklnnmmhtgpmxikv.supabase.co/rest/v1/articles",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {}
+            ]
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2Zqa2xubm1taHRncG14aWt2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM5NDkzNywiZXhwIjoyMDg1OTcwOTM3fQ.tOOTqMBsOurE0UUZ-46eb0dwUXbw676-z9mKh6_tpeY"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2Zqa2xubm1taHRncG14aWt2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM5NDkzNywiZXhwIjoyMDg1OTcwOTM3fQ.tOOTqMBsOurE0UUZ-46eb0dwUXbw676-z9mKh6_tpeY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "resolution=merge-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $input.all().map(item => item.json) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          0,
+          0
+        ],
+        "id": "91e104c3-a574-475a-8c4e-02571fc237e6",
+        "name": "HTTP Request"
+      }
+    ],
+    "pinData": {
+      "trigger rss": [
+        {
+          "json": {
+            "timestamp": "2026-02-06T23:52:50.267+01:00",
+            "Readable date": "February 6th 2026, 11:52:50 pm",
+            "Readable time": "11:52:50 pm",
+            "Day of week": "Friday",
+            "Year": "2026",
+            "Month": "February",
+            "Day of month": "06",
+            "Hour": "23",
+            "Minute": "52",
+            "Second": "50",
+            "Timezone": "Europe/Paris (UTC+01:00)"
+          }
+        }
+      ]
+    },
+    "connections": {
+      "trigger rss": {
+        "main": [
+          [
+            {
+              "node": "creation des tags",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "creation des tags": {
+        "main": [
+          [
+            {
+              "node": "RSS Read1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "RSS Read1": {
+        "main": [
+          [
+            {
+              "node": "mapping",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "mapping": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": false,
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate",
+      "availableInMCP": false
+    },
+    "versionId": "95906ff6-e61c-4e60-8ed0-01ecb0bcb063",
+    "meta": {
+      "instanceId": "992667929374b046364f2e0a11be07f1c9efd73f3356d57ed4b4d98187ffcd92"
+    },
+    "id": "vea4uSEwSGl1r4pl",
+    "tags": []
+  }
+  
