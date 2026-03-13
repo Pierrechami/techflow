@@ -125,6 +125,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
   - URL : `{{$env.SUPABASE_URL}}/rest/v1/articles`
   - Header `apikey` : `{{$env.SUPABASE_SERVICE_ROLE_KEY}}`
   - Header `Authorization` : `Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}`
+ou alors changer directement les valeurs dans le fichier ./n8n/n8n-workflows.json avant de l'importer dans n8n
 
 Ensuite :
 - Recrée/associe les credentials nécessaires si certains nodes en demandent (ici, principalement Supabase via headers).

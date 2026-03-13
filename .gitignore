@@ -46,3 +46,5 @@ app.*.map.json
 
 .env
 .env.local
+
+/n8n/n8n-worflows.json
