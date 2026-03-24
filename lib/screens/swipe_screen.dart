@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/article.dart';
 import '../services/database_service.dart';
+import 'auth/login_page.dart';
 
 /// Couleurs light / dark
 class _SwipeColors {
@@ -39,7 +41,6 @@ class _SwipeScreenState extends State<SwipeScreen> {
   bool _isDarkMode = false;
   final Set<String> _selectedFilterTags = {};
 
-  /// Tous les tags uniques des articles (triés)
   List<String> get _allTags {
     final set = <String>{};
     for (final a in _articles) {
@@ -49,7 +50,6 @@ class _SwipeScreenState extends State<SwipeScreen> {
     return list;
   }
 
-  /// Articles filtrés par les tags sélectionnés (vide = tout afficher)
   List<Article> get _filteredArticles {
     if (_selectedFilterTags.isEmpty) return _articles;
     return _articles
@@ -93,13 +93,113 @@ class _SwipeScreenState extends State<SwipeScreen> {
     }
   }
 
+  // ── Déconnexion ────────────────────────────────────────────────────────────
+  Future<void> _handleLogout(BuildContext context) async {
+    // 1. Boîte de dialogue de confirmation
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Se déconnecter ?',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            color: _isDarkMode ? Colors.white : const Color(0xFF1A1A2E),
+          ),
+        ),
+        content: Text(
+          'Tu devras te reconnecter pour accéder à TechFlow.',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontSize: 14,
+            color: _isDarkMode ? Colors.grey[400] : Colors.grey[600],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          // Bouton Annuler
+          OutlinedButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _isDarkMode ? Colors.grey[400] : Colors.grey[700],
+              side: BorderSide(
+                color: _isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w600),
+            ),
+          ),
+          // Bouton Se déconnecter
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: _SwipeColors.dislikeHalo,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Se déconnecter',
+              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // 2. Déconnexion Supabase
+    try {
+      await Supabase.instance.client.auth.signOut();
+
+      // 3. AuthGate écoute onAuthStateChange et redirige automatiquement.
+      //    Si pour une raison quelconque la redirection auto ne se déclenche
+      //    pas (ex: SwipeScreen monté hors du tree AuthGate), on force
+      //    la navigation en nettoyant toute la pile.
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (_, animation, __) => const LoginPage(),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+            transitionDuration: const Duration(milliseconds: 350),
+          ),
+          (route) => false, // supprime toute la pile
+        );
+      }
+    } catch (e) {
+      debugPrint('Erreur lors de la déconnexion : $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Erreur lors de la déconnexion.',
+              style: TextStyle(fontFamily: 'Nunito'),
+            ),
+            backgroundColor: _SwipeColors.dislikeHalo,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
   bool get _hasCurrentArticle =>
       _filteredArticles.isNotEmpty &&
       _topCardIndex != null &&
       _topCardIndex! < _filteredArticles.length;
-
-  Article? get _currentArticle =>
-      _hasCurrentArticle ? _filteredArticles[_topCardIndex!] : null;
 
   Color get _backgroundColor =>
       _isDarkMode ? _SwipeColors.backgroundDark : _SwipeColors.backgroundLight;
@@ -156,10 +256,13 @@ class _SwipeScreenState extends State<SwipeScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 12),
+          // ── Header : filtre + logout ──────────────────────────────────────
           Row(
             children: [
               const Spacer(),
               _buildFilterButton(),
+              const SizedBox(width: 8),           // espacement entre les deux
+              _buildLogoutButton(),               // ← nouveau bouton
             ],
           ),
           const SizedBox(height: 8),
@@ -210,7 +313,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
                             controller: _swiperController,
                             cardsCount: filtered.length,
                             initialIndex: _topCardIndex!,
-                            allowedSwipeDirection: const AllowedSwipeDirection.only(
+                            allowedSwipeDirection:
+                                const AllowedSwipeDirection.only(
                               left: true,
                               right: true,
                             ),
@@ -220,10 +324,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
                             padding: EdgeInsets.zero,
                             duration: const Duration(milliseconds: 250),
                             isLoop: false,
-                            numberOfCardsDisplayed: filtered.length.clamp(1, 3),
+                            numberOfCardsDisplayed:
+                                filtered.length.clamp(1, 3),
                             onSwipe: _onSwipe,
                             onEnd: _onEnd,
-                            cardBuilder: (context, index, horizontalPercent, verticalPercent) {
+                            cardBuilder: (context, index, hPct, vPct) {
                               final article = filtered[index];
                               return _buildArticleCard(article);
                             },
@@ -239,6 +344,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
     );
   }
 
+  // ── Bouton filtre (inchangé) ───────────────────────────────────────────────
   Widget _buildFilterButton() {
     final badgeTextColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
     final filterBg = _isDarkMode ? const Color(0xFF2C2C2C) : Colors.grey[100]!;
@@ -270,9 +376,27 @@ class _SwipeScreenState extends State<SwipeScreen> {
     );
   }
 
+  // ── Bouton déconnexion — même style que le filtre, icône seule ────────────
+  Widget _buildLogoutButton() {
+    final iconColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
+    final bgColor = _isDarkMode ? const Color(0xFF2C2C2C) : Colors.grey[100]!;
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => _handleLogout(context),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(9),
+          child: Icon(Icons.logout_rounded, size: 20, color: iconColor),
+        ),
+      ),
+    );
+  }
+
   Widget _buildArticleCard(Article article) {
-    final snippet = article.snippet ?? 'Pas de description disponible.';
-    final dateStr = DateFormat('dd MMM yyyy', 'fr_FR').format(article.publishedAt);
+    final dateStr =
+        DateFormat('dd MMM yyyy', 'fr_FR').format(article.publishedAt);
 
     final titleColor = _isDarkMode ? Colors.white : Colors.black87;
     final snippetColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[800]!;
@@ -304,11 +428,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Ligne : date de publication + bouton dark mode
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     color: _headerBadgeBg,
                     borderRadius: BorderRadius.circular(16),
@@ -327,20 +451,23 @@ class _SwipeScreenState extends State<SwipeScreen> {
                   color: _headerBadgeBg,
                   borderRadius: BorderRadius.circular(16),
                   child: IconButton(
-                    onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
+                    onPressed: () =>
+                        setState(() => _isDarkMode = !_isDarkMode),
                     icon: Icon(
-                      _isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                      _isDarkMode
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_rounded,
                       size: 22,
                       color: badgeTextColor,
                     ),
                     padding: const EdgeInsets.all(6),
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    constraints: const BoxConstraints(
+                        minWidth: 40, minHeight: 40),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 22),
-            // Titre
             Text(
               article.title,
               style: TextStyle(
@@ -353,12 +480,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 22),
-            // Snippet scrollable avec tabulation avant le premier mot
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(left: 24),
                 child: Text(
-                  snippet,
+                  article.snippet ?? 'Pas de description disponible.',
                   style: TextStyle(
                     fontSize: 18,
                     height: 1.55,
@@ -368,12 +494,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            // Auteur à gauche ; Tags + Source à droite
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  'By ${article.author ?? 'Unknown'}',
+                  'By ${article.author}',
                   style: TextStyle(
                     fontSize: 14,
                     color: _textSecondary,
@@ -394,10 +519,14 @@ class _SwipeScreenState extends State<SwipeScreen> {
                           .take(5)
                           .map(
                             (tag) => Chip(
-                              label: Text(tag, style: const TextStyle(fontSize: 13)),
-                              backgroundColor: Colors.teal.withOpacity(_isDarkMode ? 0.25 : 0.12),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              label: Text(tag,
+                                  style: const TextStyle(fontSize: 13)),
+                              backgroundColor: Colors.teal.withOpacity(
+                                  _isDarkMode ? 0.25 : 0.12),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
                             ),
                           )
                           .toList(),
@@ -427,13 +556,15 @@ class _SwipeScreenState extends State<SwipeScreen> {
         _buildCircularActionButton(
           icon: Icons.close_rounded,
           color: _SwipeColors.dislikeHalo,
-          onTap: () => _swiperController.swipe(CardSwiperDirection.left),
+          onTap: () =>
+              _swiperController.swipe(CardSwiperDirection.left),
         ),
         const SizedBox(width: 40),
         _buildCircularActionButton(
           icon: Icons.check_rounded,
           color: _SwipeColors.likeHalo,
-          onTap: () => _swiperController.swipe(CardSwiperDirection.right),
+          onTap: () =>
+              _swiperController.swipe(CardSwiperDirection.right),
         ),
       ],
     );
@@ -460,7 +591,6 @@ class _SwipeScreenState extends State<SwipeScreen> {
             BoxShadow(
               color: color.withOpacity(0.25),
               blurRadius: 12,
-              spreadRadius: 0,
             ),
           ],
         ),
@@ -484,7 +614,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
         color: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_isDarkMode ? 0.2 : 0.06),
+            color: Colors.black
+                .withOpacity(_isDarkMode ? 0.2 : 0.06),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -526,7 +657,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
         borderRadius: BorderRadius.circular(24),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: isActive
@@ -542,7 +674,9 @@ class _SwipeScreenState extends State<SwipeScreen> {
             border: isActive
                 ? null
                 : Border.all(
-                    color: _isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+                    color: _isDarkMode
+                        ? Colors.grey[600]!
+                        : Colors.grey[300]!,
                     width: 1.5,
                   ),
           ),
@@ -553,7 +687,9 @@ class _SwipeScreenState extends State<SwipeScreen> {
               fontWeight: FontWeight.w600,
               color: isActive
                   ? Colors.white
-                  : (_isDarkMode ? Colors.grey[400]! : Colors.grey[700]!),
+                  : (_isDarkMode
+                      ? Colors.grey[400]!
+                      : Colors.grey[700]!),
             ),
           ),
         ),
@@ -569,7 +705,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
     setState(() {
       _topCardIndex = currentIndex;
     });
-    // TODO: si direction == right, enregistrer l'article en favori
+    // TODO: enregistrer le swipe via _dbService.saveSwipe(...)
     return true;
   }
 
@@ -580,9 +716,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
   }
 
   void _showFilterSheet(BuildContext context) {
-    final isDark = _isDarkMode;
-    final bgColor = isDark ? _SwipeColors.cardBgDark : Colors.white;
-    final surfaceColor = isDark ? _SwipeColors.headerBadgeBgDark : Colors.grey[100]!;
+    final bgColor =
+        _isDarkMode ? _SwipeColors.cardBgDark : Colors.white;
+    final surfaceColor = _isDarkMode
+        ? _SwipeColors.headerBadgeBgDark
+        : Colors.grey[100]!;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -592,7 +730,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
         initialSelected: Set<String>.from(_selectedFilterTags),
         backgroundColor: bgColor,
         surfaceColor: surfaceColor,
-        isDarkMode: isDark,
+        isDarkMode: _isDarkMode,
         onApply: (selected) {
           setState(() {
             _selectedFilterTags
@@ -607,7 +745,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
   }
 }
 
-/// Contenu du bottom sheet de filtre par tags
+// ─── Bottom sheet de filtre (inchangé) ────────────────────────────────────────
 class _FilterSheetContent extends StatefulWidget {
   const _FilterSheetContent({
     required this.allTags,
@@ -656,8 +794,10 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
   @override
   Widget build(BuildContext context) {
     final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    final hintColor = widget.isDarkMode ? Colors.grey[500]! : Colors.grey[600]!;
-    final borderColor = widget.isDarkMode ? Colors.grey[600]! : Colors.grey[400]!;
+    final hintColor =
+        widget.isDarkMode ? Colors.grey[500]! : Colors.grey[600]!;
+    final borderColor =
+        widget.isDarkMode ? Colors.grey[600]! : Colors.grey[400]!;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -666,7 +806,8 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
       builder: (context, scrollController) => Container(
         decoration: BoxDecoration(
           color: widget.backgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           children: [
@@ -699,7 +840,8 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                 decoration: InputDecoration(
                   hintText: 'Rechercher un tag...',
                   hintStyle: TextStyle(color: hintColor),
-                  prefixIcon: Icon(Icons.search_rounded, color: hintColor),
+                  prefixIcon:
+                      Icon(Icons.search_rounded, color: hintColor),
                   filled: true,
                   fillColor: widget.surfaceColor,
                   border: OutlineInputBorder(
@@ -707,9 +849,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
+                      horizontal: 16, vertical: 12),
                 ),
                 style: TextStyle(color: textColor, fontSize: 16),
               ),
@@ -722,14 +862,16 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                         padding: const EdgeInsets.all(20),
                         child: Text(
                           'Aucun tag ne correspond à la recherche.',
-                          style: TextStyle(color: hintColor, fontSize: 14),
+                          style:
+                              TextStyle(color: hintColor, fontSize: 14),
                           textAlign: TextAlign.center,
                         ),
                       ),
                     )
                   : ListView.builder(
                       controller: scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
                       itemCount: _filteredTags.length,
                       itemBuilder: (context, index) {
                         final tag = _filteredTags[index];
@@ -749,9 +891,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                             borderRadius: BorderRadius.circular(12),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
+                                  horizontal: 16, vertical: 12),
                               child: Row(
                                 children: [
                                   Icon(
@@ -787,9 +927,7 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
               child: Row(
                 children: [
                   OutlinedButton(
-                    onPressed: () {
-                      setState(() => _selected.clear());
-                    },
+                    onPressed: () => setState(() => _selected.clear()),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: hintColor,
                       side: BorderSide(color: borderColor),
