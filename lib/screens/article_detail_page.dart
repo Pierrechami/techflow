@@ -268,107 +268,117 @@ class ArticleDetailPage extends StatelessWidget {
     final codeBorder = isDarkMode ? const Color(0xFF3A3A3A) : const Color(0xFFDDDDDD);
     final linkColor = isDarkMode ? const Color(0xFF9C95FF) : const Color(0xFF6C63FF);
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Html(
-          data: content,
-          onLinkTap: (url, _, __) async {
-            if (url == null) return;
-            final uri = Uri.parse(url);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            }
-          },
-          style: {
-            'body': Style(
-              margin: Margins.all(22),
-              padding: HtmlPaddings.zero,
-              fontSize: FontSize(16),
-              lineHeight: LineHeight(1.75),
-              color: textColor,
-            ),
-            'h1': Style(
-              fontSize: FontSize(22),
-              fontWeight: FontWeight.w800,
-              color: isDarkMode ? Colors.white : Colors.black87,
-              margin: Margins.only(top: 24, bottom: 12),
-            ),
-            'h2': Style(
-              fontSize: FontSize(19),
-              fontWeight: FontWeight.w700,
-              color: isDarkMode ? Colors.white : Colors.black87,
-              margin: Margins.only(top: 20, bottom: 10),
-            ),
-            'h3': Style(
-              fontSize: FontSize(17),
-              fontWeight: FontWeight.w700,
-              color: isDarkMode ? Colors.white : Colors.black87,
-              margin: Margins.only(top: 16, bottom: 8),
-            ),
-            'p': Style(
-              margin: Margins.only(bottom: 14),
-              color: textColor,
-            ),
-            'a': Style(
-              color: linkColor,
-              textDecoration: TextDecoration.underline,
-              textDecorationColor: linkColor,
-            ),
-            'code': Style(
-              backgroundColor: codeBackground,
-              color: isDarkMode ? const Color(0xFFFF7B9C) : const Color(0xFFD6336C),
-              fontFamily: 'monospace',
-              fontSize: FontSize(14),
-              padding: HtmlPaddings.symmetric(horizontal: 5, vertical: 2),
-            ),
-            'pre': Style(
-              backgroundColor: codeBackground,
-              padding: HtmlPaddings.all(16),
-              margin: Margins.symmetric(vertical: 12),
-              border: Border.all(color: codeBorder),
-            ),
-            'blockquote': Style(
-              border: Border(
-                left: BorderSide(
-                  color: const Color(0xFF6C63FF),
-                  width: 3,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
               ),
-              padding: HtmlPaddings.only(left: 16),
-              margin: Margins.symmetric(vertical: 12),
-              color: _textSecondary,
-              fontStyle: FontStyle.italic,
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: Html(
+                data: content,
+                onLinkTap: (url, _, __) async {
+                  if (url == null) return;
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                style: {
+                  'body': Style(
+                    margin: Margins.all(22),
+                    padding: HtmlPaddings.zero,
+                    fontSize: FontSize(16),
+                    lineHeight: LineHeight(1.75),
+                    color: textColor,
+                  ),
+                  'h1': Style(
+                    fontSize: FontSize(22),
+                    fontWeight: FontWeight.w800,
+                    color: isDarkMode ? Colors.white : Colors.black87,
+                    margin: Margins.only(top: 24, bottom: 12),
+                  ),
+                  'h2': Style(
+                    fontSize: FontSize(19),
+                    fontWeight: FontWeight.w700,
+                    color: isDarkMode ? Colors.white : Colors.black87,
+                    margin: Margins.only(top: 20, bottom: 10),
+                  ),
+                  'h3': Style(
+                    fontSize: FontSize(17),
+                    fontWeight: FontWeight.w700,
+                    color: isDarkMode ? Colors.white : Colors.black87,
+                    margin: Margins.only(top: 16, bottom: 8),
+                  ),
+                  'p': Style(
+                    margin: Margins.only(bottom: 14),
+                    color: textColor,
+                  ),
+                  'a': Style(
+                    color: linkColor,
+                    textDecoration: TextDecoration.underline,
+                    textDecorationColor: linkColor,
+                  ),
+                  'code': Style(
+                    backgroundColor: codeBackground,
+                    color: isDarkMode
+                        ? const Color(0xFFFF7B9C)
+                        : const Color(0xFFD6336C),
+                    fontFamily: 'monospace',
+                    fontSize: FontSize(14),
+                    padding: HtmlPaddings.symmetric(horizontal: 5, vertical: 2),
+                  ),
+                  'pre': Style(
+                    backgroundColor: codeBackground,
+                    padding: HtmlPaddings.all(16),
+                    margin: Margins.symmetric(vertical: 12),
+                    display: Display.block,
+                  ),
+                  'blockquote': Style(
+                    border: Border(
+                      left: BorderSide(
+                        color: const Color(0xFF6C63FF),
+                        width: 3,
+                      ),
+                    ),
+                    padding: HtmlPaddings.only(left: 16),
+                    margin: Margins.symmetric(vertical: 12),
+                    color: _textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  'ul': Style(margin: Margins.only(bottom: 14)),
+                  'ol': Style(margin: Margins.only(bottom: 14)),
+                  'li': Style(
+                    margin: Margins.only(bottom: 6),
+                    color: textColor,
+                  ),
+                  'img': Style(
+                    width: Width(constraints.maxWidth - 44),
+                    height: Height.auto(),
+                  ),
+                },
+              ),
             ),
-            'ul': Style(margin: Margins.only(bottom: 14)),
-            'ol': Style(margin: Margins.only(bottom: 14)),
-            'li': Style(
-              margin: Margins.only(bottom: 6),
-              color: textColor,
-            ),
-            'img': Style(
-              width: Width(double.infinity),
-            ),
-          },
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
