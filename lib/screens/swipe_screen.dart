@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/article.dart';
 import '../services/database_service.dart';
+import 'article_detail_page.dart';
 import 'auth/login_page.dart';
 
 /// Couleurs light / dark
@@ -40,6 +41,8 @@ class _SwipeScreenState extends State<SwipeScreen> {
   int _selectedTab = 0;
   bool _isDarkMode = false;
   final Set<String> _selectedFilterTags = {};
+  List<Article> _likedArticles = [];
+  bool _isLoadingFavorites = false;
 
   List<String> get _allTags {
     final set = <String>{};
@@ -223,19 +226,420 @@ class _SwipeScreenState extends State<SwipeScreen> {
     );
   }
 
+  Future<void> _loadLikedArticles() async {
+    setState(() => _isLoadingFavorites = true);
+    try {
+      final data = await _dbService.fetchLikedArticles();
+      setState(() => _likedArticles = data);
+    } catch (e) {
+      debugPrint('Erreur favoris: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingFavorites = false);
+    }
+  }
+
+  Future<void> _removeLike(Article article) async {
+    await _dbService.removeLike(article.url);
+    setState(() => _likedArticles.removeWhere((a) => a.url == article.url));
+  }
+
   Widget _buildFavoritesTab() {
     final iconColor = _isDarkMode ? Colors.grey[500]! : Colors.grey[400]!;
     final textColor = _isDarkMode ? Colors.grey[400]! : Colors.grey[600]!;
-    return Center(
+    final titleColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.favorite_border, size: 64, color: iconColor),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Spacer(),
+              _buildLogoutButton(),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Text(
+                'Mes favoris',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (_likedArticles.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        _SwipeColors.pillActiveStart,
+                        _SwipeColors.pillActiveEnd,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_likedArticles.length}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
-          Text(
-            'Vos articles favoris apparaîtront ici',
-            style: TextStyle(fontSize: 16, color: textColor),
-            textAlign: TextAlign.center,
+          Expanded(
+            child: _isLoadingFavorites
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: _isDarkMode
+                          ? Colors.grey[400]
+                          : _SwipeColors.pillActiveStart,
+                    ),
+                  )
+                : _likedArticles.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.favorite_border, size: 64, color: iconColor),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Aucun article liké pour le moment.',
+                              style: TextStyle(fontSize: 16, color: textColor),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Swipe à droite pour en sauvegarder !',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: textColor.withOpacity(0.7),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        itemCount: _likedArticles.length,
+                        itemBuilder: (context, index) =>
+                            _buildFavoriteCard(_likedArticles[index]),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAiSummary(BuildContext context, Article article) {
+    final bgColor = _isDarkMode ? _SwipeColors.cardBgDark : Colors.white;
+    final titleColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+    final textColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _isDarkMode ? Colors.grey[600] : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6C63FF), Color(0xFF9C95FF)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome_rounded,
+                              color: Colors.white, size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            'Résumé IA',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                child: Text(
+                  article.title,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+                  child: Text(
+                    article.snippet ?? 'Aucun résumé disponible pour cet article.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.65,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6C63FF), Color(0xFF8B80FF)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _openArticle(article.url);
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: const Text(
+                        'Lire l\'article complet',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavoriteCard(Article article) {
+    final dateStr =
+        DateFormat('dd MMM yyyy', 'fr_FR').format(article.publishedAt);
+    final titleColor = _isDarkMode ? Colors.white : Colors.black87;
+    final snippetColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
+    final tagBg = Colors.teal.withOpacity(_isDarkMode ? 0.25 : 0.12);
+    final tagFg = _isDarkMode ? Colors.teal.shade200 : Colors.teal.shade700;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.07),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Titre + boutons (Lire | IA | ❤) ─────────────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  article.title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Bouton Lire → ouvre la page détail
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (_, animation, __) => ArticleDetailPage(
+                      article: article,
+                      isDarkMode: _isDarkMode,
+                    ),
+                    transitionsBuilder: (_, animation, __, child) =>
+                        FadeTransition(opacity: animation, child: child),
+                    transitionDuration: const Duration(milliseconds: 300),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.article_rounded,
+                    color: _isDarkMode
+                        ? Colors.teal.shade300
+                        : Colors.teal.shade700,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Bouton Résumer IA
+              GestureDetector(
+                onTap: () => _showAiSummary(context, article),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Color(0xFF6C63FF),
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Bouton unlike
+              GestureDetector(
+                onTap: () => _removeLike(article),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: _SwipeColors.dislikeHalo.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.favorite_rounded,
+                    color: _SwipeColors.dislikeHalo,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // ── Snippet ───────────────────────────────────────────────────────
+          if (article.snippet != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              article.snippet!,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: snippetColor,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          // ── Date + tags ───────────────────────────────────────────────────
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.calendar_today_rounded,
+                  size: 12, color: _textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                dateStr,
+                style: TextStyle(fontSize: 12, color: _textSecondary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  children: article.tags
+                      .take(3)
+                      .map(
+                        (tag) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: tagBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            tag,
+                            style: TextStyle(fontSize: 11, color: tagFg),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -636,7 +1040,10 @@ class _SwipeScreenState extends State<SwipeScreen> {
               _buildPillTab(
                 label: 'Mes favoris',
                 isActive: _selectedTab == 1,
-                onTap: () => setState(() => _selectedTab = 1),
+                onTap: () {
+                  setState(() => _selectedTab = 1);
+                  _loadLikedArticles();
+                },
               ),
             ],
           ),
@@ -705,7 +1112,10 @@ class _SwipeScreenState extends State<SwipeScreen> {
     setState(() {
       _topCardIndex = currentIndex;
     });
-    // TODO: enregistrer le swipe via _dbService.saveSwipe(...)
+    if (direction == CardSwiperDirection.right) {
+      final article = _filteredArticles[previousIndex];
+      await _dbService.saveLike(article.url);
+    }
     return true;
   }
 
