@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/article.dart';
+import '../services/ai_service.dart';
 import '../services/database_service.dart';
 import 'article_detail_page.dart';
 import 'auth/login_page.dart';
@@ -342,139 +343,14 @@ class _SwipeScreenState extends State<SwipeScreen> {
   }
 
   void _showAiSummary(BuildContext context, Article article) {
-    final bgColor = _isDarkMode ? _SwipeColors.cardBgDark : Colors.white;
-    final titleColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
-    final textColor = _isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.85,
-        builder: (_, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _isDarkMode ? Colors.grey[600] : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF6C63FF), Color(0xFF9C95FF)],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.auto_awesome_rounded,
-                              color: Colors.white, size: 14),
-                          SizedBox(width: 6),
-                          Text(
-                            'Résumé IA',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                child: Text(
-                  article.title,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: titleColor,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
-                  child: Text(
-                    article.snippet ?? 'Aucun résumé disponible pour cet article.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.65,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6C63FF), Color(0xFF8B80FF)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _openArticle(article.url);
-                      },
-                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                      label: const Text(
-                        'Lire l\'article complet',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => _AiSummarySheet(
+        article: article,
+        isDarkMode: _isDarkMode,
+        onReadArticle: () => _openArticle(article.url),
       ),
     );
   }
@@ -1360,6 +1236,258 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Résumé IA — bottom sheet avec appel Claude ────────────────────────────────
+class _AiSummarySheet extends StatefulWidget {
+  const _AiSummarySheet({
+    required this.article,
+    required this.isDarkMode,
+    required this.onReadArticle,
+  });
+
+  final Article article;
+  final bool isDarkMode;
+  final VoidCallback onReadArticle;
+
+  @override
+  State<_AiSummarySheet> createState() => _AiSummarySheetState();
+}
+
+class _AiSummarySheetState extends State<_AiSummarySheet> {
+  final AiService _aiService = AiService();
+
+  String? _summary;
+  String? _error;
+  bool _isLoading = true;
+
+  Color get _bg =>
+      widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _titleColor =>
+      widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+  Color get _textColor =>
+      widget.isDarkMode ? Colors.grey[300]! : Colors.grey[700]!;
+  Color get _handleColor =>
+      widget.isDarkMode ? Colors.grey[600]! : Colors.grey[300]!;
+
+  @override
+  void initState() {
+    super.initState();
+    _generate();
+  }
+
+  Future<void> _generate() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _summary = null;
+    });
+    try {
+      final result = await _aiService.summarizeArticle(
+        title: widget.article.title,
+        content: widget.article.content,
+        snippet: widget.article.snippet,
+      );
+      if (mounted) setState(() => _summary = result);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.85,
+      builder: (_, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: _bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Handle ────────────────────────────────────────────────────
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _handleColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // ── Badge + titre ─────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6C63FF), Color(0xFF9C95FF)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white, size: 14),
+                    SizedBox(width: 6),
+                    Text(
+                      'Résumé IA',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+              child: Text(
+                widget.article.title,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                  height: 1.3,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // ── Contenu : chargement / résumé / erreur ────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+                child: _buildBody(),
+              ),
+            ),
+            // ── Bouton Lire ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF8B80FF)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onReadArticle();
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                    label: const Text(
+                      "Lire l'article complet",
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(
+              color: Color(0xFF6C63FF),
+              strokeWidth: 2.5,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Génération du résumé en cours...',
+              style: TextStyle(fontSize: 14, color: _textColor),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    color: Color(0xFFE53935), size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: Color(0xFFE53935),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _generate,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Réessayer'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF6C63FF),
+                side: const BorderSide(color: Color(0xFF6C63FF)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Text(
+      _summary ?? '',
+      style: TextStyle(
+        fontSize: 15,
+        height: 1.65,
+        color: _textColor,
       ),
     );
   }
